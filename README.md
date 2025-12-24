@@ -94,4 +94,4 @@ GitHub Pull Request의 전체 컨텍스트 조회 (커밋 포함)
 
 ## 라이선스
 
-ISC
+MIT
