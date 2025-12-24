@@ -37,6 +37,7 @@
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@octokit/rest": "^22.0.1",
     "dotenv": "^17.2.3",
+    "settings": "^0.1.1",
     "zod": "^4.2.1"
   }
 }
