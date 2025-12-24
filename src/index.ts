@@ -50,6 +50,17 @@ const UpdateIssueSchema = z.object({
     assignees: z.array(z.string()).optional(),
 });
 
+const CreatePRSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    title: z.string(),
+    body: z.string().optional(),
+    head: z.string(), // branch to merge FROM (e.g., "feature-branch")
+    base: z.string(), // branch to merge INTO (e.g., "main")
+    draft: z.boolean().optional(),
+    maintainer_can_modify: z.boolean().optional(),
+});
+
 const server = new Server(
     {
         name: "issue-scribe-mcp",
@@ -123,6 +134,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         assignees: { type: "array", items: { type: "string" }, description: "New assignees (optional)" },
                     },
                     required: ["owner", "repo", "issue_number"],
+                },
+            },
+            {
+                name: "github_create_pr",
+                description: "Create a new GitHub Pull Request",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        title: { type: "string", description: "PR title" },
+                        body: { type: "string", description: "PR body/description (optional)" },
+                        head: { type: "string", description: "Branch to merge FROM (e.g., 'feature-branch')" },
+                        base: { type: "string", description: "Branch to merge INTO (e.g., 'main')" },
+                        draft: { type: "boolean", description: "Create as draft PR (optional)" },
+                        maintainer_can_modify: { type: "boolean", description: "Allow maintainer edits (optional)" },
+                    },
+                    required: ["owner", "repo", "title", "head", "base"],
                 },
             },
         ],
@@ -364,6 +393,66 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             error: error.message,
                             status: error.status,
                             detail: `Failed to update issue #${issueNum} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_create_pr") {
+        try {
+            const { owner, repo, title, body, head, base, draft, maintainer_can_modify } = CreatePRSchema.parse(args);
+
+            const pr = await octokit.rest.pulls.create({
+                owner,
+                repo,
+                title,
+                body,
+                head,
+                base,
+                draft,
+                maintainer_can_modify,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                pull_request: {
+                                    number: pr.data.number,
+                                    title: pr.data.title,
+                                    state: pr.data.state,
+                                    html_url: pr.data.html_url,
+                                    draft: pr.data.draft,
+                                    head: pr.data.head.ref,
+                                    base: pr.data.base.ref,
+                                    created_at: pr.data.created_at,
+                                },
+                                message: `PR #${pr.data.number} created successfully`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            const title = args && typeof args === 'object' && 'title' in args ? args.title : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to create PR "${title}" in ${owner}/${repo}`,
                         }, null, 2),
                     },
                 ],

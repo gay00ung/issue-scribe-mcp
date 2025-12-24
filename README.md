@@ -80,6 +80,18 @@ GitHub Pull Request의 전체 컨텍스트 조회 (커밋 포함)
 - labels: 새 라벨 배열 (옵션)
 - assignees: 새 담당자 배열 (옵션)
 
+### github_create_pr
+새로운 GitHub Pull Request 생성
+
+- owner: 저장소 소유자
+- repo: 저장소 이름
+- title: PR 제목 (필수)
+- body: PR 설명 (옵션)
+- head: 병합할 브랜치 (필수, 예: "feature-branch")
+- base: 병합 대상 브랜치 (필수, 예: "main")
+- draft: Draft PR로 생성 (옵션)
+- maintainer_can_modify: 메인테이너 수정 허용 (옵션)
+
 ## 라이선스
 
 ISC
