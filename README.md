@@ -44,19 +44,41 @@ Claude Desktop 등의 MCP 클라이언트에서 사용:
 
 ## 제공 Tools
 
-### github.get_issue_context
+### github_get_issue_context
 GitHub Issue의 전체 컨텍스트 조회
 
 - owner: 저장소 소유자
 - repo: 저장소 이름
 - issue_number: 이슈 번호
 
-### github.get_pr_context
+### github_get_pr_context
 GitHub Pull Request의 전체 컨텍스트 조회 (커밋 포함)
 
 - owner: 저장소 소유자
 - repo: 저장소 이름
 - pull_number: PR 번호
+
+### github_create_issue
+새로운 GitHub Issue 생성
+
+- owner: 저장소 소유자
+- repo: 저장소 이름
+- title: 이슈 제목 (필수)
+- body: 이슈 본문 (옵션)
+- labels: 라벨 배열 (옵션)
+- assignees: 담당자 배열 (옵션)
+
+### github_update_issue
+기존 GitHub Issue 수정
+
+- owner: 저장소 소유자
+- repo: 저장소 이름
+- issue_number: 이슈 번호
+- title: 새 제목 (옵션)
+- body: 새 본문 (옵션)
+- state: "open" 또는 "closed" (옵션)
+- labels: 새 라벨 배열 (옵션)
+- assignees: 새 담당자 배열 (옵션)
 
 ## 라이선스
 
