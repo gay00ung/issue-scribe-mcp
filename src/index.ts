@@ -11,6 +11,18 @@ import { z } from "zod";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
+// Reaction type mapping: user-friendly names to GitHub API format
+const REACTION_MAP: Record<string, string> = {
+    "thumbs_up": "+1",
+    "thumbs_down": "-1",
+    "laugh": "laugh",
+    "confused": "confused",
+    "heart": "heart",
+    "hooray": "hooray",
+    "rocket": "rocket",
+    "eyes": "eyes",
+};
+
 if (!GITHUB_TOKEN) {
     console.error("Error: GITHUB_TOKEN environment variable is required");
     process.exit(1);
@@ -59,6 +71,36 @@ const CreatePRSchema = z.object({
     base: z.string(), // branch to merge INTO (e.g., "main")
     draft: z.boolean().optional(),
     maintainer_can_modify: z.boolean().optional(),
+});
+
+const AddCommentSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    issue_number: z.number(), // works for both issues and PRs
+    body: z.string(),
+});
+
+const UpdateCommentSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    comment_id: z.number(),
+    body: z.string(),
+});
+
+const DeleteCommentSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    comment_id: z.number(),
+});
+
+const AddReactionSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    comment_id: z.number().optional(),
+    issue_number: z.number().optional(),
+    reaction: z.enum(["thumbs_up", "thumbs_down", "laugh", "confused", "heart", "hooray", "rocket", "eyes"]),
+}).refine(data => data.comment_id || data.issue_number, {
+    message: "Either comment_id or issue_number must be provided",
 });
 
 const server = new Server(
@@ -154,6 +196,66 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     required: ["owner", "repo", "title", "head", "base"],
                 },
             },
+            {
+                name: "github_add_comment",
+                description: "Add a comment to a GitHub Issue or Pull Request",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        issue_number: { type: "number", description: "Issue or PR number" },
+                        body: { type: "string", description: "Comment body text" },
+                    },
+                    required: ["owner", "repo", "issue_number", "body"],
+                },
+            },
+            {
+                name: "github_update_comment",
+                description: "Update an existing comment on a GitHub Issue or Pull Request",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        comment_id: { type: "number", description: "Comment ID to update" },
+                        body: { type: "string", description: "New comment body text" },
+                    },
+                    required: ["owner", "repo", "comment_id", "body"],
+                },
+            },
+            {
+                name: "github_delete_comment",
+                description: "Delete a comment from a GitHub Issue or Pull Request",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        comment_id: { type: "number", description: "Comment ID to delete" },
+                    },
+                    required: ["owner", "repo", "comment_id"],
+                },
+            },
+            {
+                name: "github_add_reaction",
+                description: "Add a reaction (emoji) to a comment or an issue/PR directly. Provide either comment_id OR issue_number.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        comment_id: { type: "number", description: "Comment ID to react to (optional if issue_number is provided)" },
+                        issue_number: { type: "number", description: "Issue/PR number to react to (optional if comment_id is provided)" },
+                        reaction: {
+                            type: "string",
+                            enum: ["thumbs_up", "thumbs_down", "laugh", "confused", "heart", "hooray", "rocket", "eyes"],
+                            description: "Reaction type: thumbs_up 👍, thumbs_down 👎, laugh 😄, confused 😕, heart ❤️, hooray 🎉, rocket 🚀, eyes 👀"
+                        },
+                    },
+                    required: ["owner", "repo", "reaction"],
+                },
+            },
         ],
     };
 });
@@ -189,9 +291,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                     ),
                                 },
                                 comments: comments.data.map((c) => ({
+                                    id: c.id,
                                     user: c.user?.login,
                                     body: c.body,
                                     created_at: c.created_at,
+                                    html_url: c.html_url,
                                 })),
                             },
                             null,
@@ -252,9 +356,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                     ),
                                 },
                                 comments: comments.data.map((c) => ({
+                                    id: c.id,
                                     user: c.user?.login,
                                     body: c.body,
                                     created_at: c.created_at,
+                                    html_url: c.html_url,
                                 })),
                                 commits: commits.data.map((c) => ({
                                     sha: c.sha,
@@ -453,6 +559,230 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             error: error.message,
                             status: error.status,
                             detail: `Failed to create PR "${title}" in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_add_comment") {
+        try {
+            const { owner, repo, issue_number, body } = AddCommentSchema.parse(args);
+
+            const comment = await octokit.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                comment: {
+                                    id: comment.data.id,
+                                    body: comment.data.body,
+                                    user: comment.data.user?.login,
+                                    html_url: comment.data.html_url,
+                                    created_at: comment.data.created_at,
+                                },
+                                message: `Comment added successfully to issue/PR #${issue_number}`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const issueNum = args && typeof args === 'object' && 'issue_number' in args ? args.issue_number : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to add comment to issue/PR #${issueNum} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_update_comment") {
+        try {
+            const { owner, repo, comment_id, body } = UpdateCommentSchema.parse(args);
+
+            const comment = await octokit.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id,
+                body,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                comment: {
+                                    id: comment.data.id,
+                                    body: comment.data.body,
+                                    user: comment.data.user?.login,
+                                    html_url: comment.data.html_url,
+                                    updated_at: comment.data.updated_at,
+                                },
+                                message: `Comment #${comment_id} updated successfully`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const commentId = args && typeof args === 'object' && 'comment_id' in args ? args.comment_id : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to update comment #${commentId} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_delete_comment") {
+        try {
+            const { owner, repo, comment_id } = DeleteCommentSchema.parse(args);
+
+            await octokit.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                message: `Comment #${comment_id} deleted successfully`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const commentId = args && typeof args === 'object' && 'comment_id' in args ? args.comment_id : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to delete comment #${commentId} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_add_reaction") {
+        try {
+            const { owner, repo, comment_id, issue_number, reaction } = AddReactionSchema.parse(args);
+
+            let reactionResponse;
+            let target = "";
+
+            const githubReaction = REACTION_MAP[reaction] || reaction;
+
+            if (comment_id) {
+                // Add reaction to a comment
+                reactionResponse = await octokit.rest.reactions.createForIssueComment({
+                    owner,
+                    repo,
+                    comment_id,
+                    content: githubReaction as any,
+                });
+                target = `comment #${comment_id}`;
+            } else if (issue_number) {
+                // Add reaction to an issue/PR
+                reactionResponse = await octokit.rest.reactions.createForIssue({
+                    owner,
+                    repo,
+                    issue_number,
+                    content: githubReaction as any,
+                });
+                target = `issue/PR #${issue_number}`;
+            }
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                reaction: {
+                                    id: reactionResponse!.data.id,
+                                    content: reactionResponse!.data.content,
+                                    user: reactionResponse!.data.user?.login,
+                                    created_at: reactionResponse!.data.created_at,
+                                },
+                                message: `Reaction "${reaction}" added successfully to ${target}`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const commentId = args && typeof args === 'object' && 'comment_id' in args ? args.comment_id : undefined;
+            const issueNum = args && typeof args === 'object' && 'issue_number' in args ? args.issue_number : undefined;
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            const reaction = args && typeof args === 'object' && 'reaction' in args ? args.reaction : 'unknown';
+            const target = commentId ? `comment #${commentId}` : issueNum ? `issue/PR #${issueNum}` : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to add reaction "${reaction}" to ${target} in ${owner}/${repo}`,
                         }, null, 2),
                     },
                 ],
