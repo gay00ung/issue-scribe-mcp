@@ -47,6 +47,26 @@ GITHUB_TOKEN=your_github_personal_access_token_here
 npm install -g issue-scribe-mcp
 ```
 
+## 🔄 Update
+
+To update to the latest version:
+
+```bash
+npm update -g issue-scribe-mcp
+```
+
+Or reinstall with a specific version:
+
+```bash
+npm install -g issue-scribe-mcp@latest
+```
+
+Check currently installed version:
+
+```bash
+npm list -g issue-scribe-mcp
+```
+
 ### Local Development
 
 ```bash

@@ -47,6 +47,26 @@ GITHUB_TOKEN=your_github_personal_access_token_here
 npm install -g issue-scribe-mcp
 ```
 
+## 🔄 업데이트
+
+최신 버전으로 업데이트하려면:
+
+```bash
+npm update -g issue-scribe-mcp
+```
+
+또는 특정 버전으로 재설치:
+
+```bash
+npm install -g issue-scribe-mcp@latest
+```
+
+현재 설치된 버전 확인:
+
+```bash
+npm list -g issue-scribe-mcp
+```
+
 ### 로컬 개발
 
 ```bash
