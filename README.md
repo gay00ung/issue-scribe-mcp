@@ -68,6 +68,22 @@ cp .env.example .env
 node dist/index.js
 ```
 
+### MCP Inspector로 테스트
+
+로컬에서 MCP 서버를 테스트할 수 있는 간편한 스크립트를 제공합니다:
+
+```bash
+./test-local.sh
+```
+
+이 스크립트가 자동으로:
+- ✅ `.env` 파일 로드
+- ✅ `GITHUB_TOKEN` 확인
+- ✅ 빌드 상태 확인
+- ✅ **MCP Inspector 실행** (브라우저 자동 열림)
+
+MCP Inspector에서 GUI로 모든 Tool을 테스트하고 API 응답을 확인할 수 있습니다!
+
 ## ⚙️ MCP 클라이언트 설정
 
 ### Claude Desktop 설정
@@ -159,6 +175,49 @@ GitHub Pull Request의 전체 컨텍스트를 조회합니다 (커밋 포함).
 - `base` (string, 필수): 병합 대상 브랜치 (예: `"main"`)
 - `draft` (boolean, 옵션): Draft PR로 생성 여부
 - `maintainer_can_modify` (boolean, 옵션): 메인테이너 수정 허용 여부
+
+### github_add_comment
+GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `issue_number` (number, 필수): Issue 또는 PR 번호
+- `body` (string, 필수): 댓글 내용
+
+**반환 정보:**
+- 댓글 ID, 내용, 작성자
+- 댓글 URL 및 생성 시간
+
+### github_update_comment
+기존 댓글을 수정합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `comment_id` (number, 필수): 수정할 댓글 ID
+- `body` (string, 필수): 새로운 댓글 내용
+
+### github_delete_comment
+댓글을 삭제합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `comment_id` (number, 필수): 삭제할 댓글 ID
+
+### github_add_reaction
+댓글 또는 Issue/PR에 이모지 반응을 추가합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `comment_id` (number, 옵션): 반응을 추가할 댓글 ID
+- `issue_number` (number, 옵션): 반응을 추가할 Issue/PR 번호
+- `reaction` (string, 필수): 반응 종류
+  - `thumbs_up` 👍, `thumbs_down` 👎, `laugh` 😄, `confused` 😕, `heart` ❤️, `hooray` 🎉, `rocket` 🚀, `eyes` 👀
+
+**참고**: `comment_id` 또는 `issue_number` 중 하나를 반드시 제공해야 합니다.
 
 ## 💡 사용 예시
 

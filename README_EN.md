@@ -68,6 +68,22 @@ cp .env.example .env
 node dist/index.js
 ```
 
+### Test with MCP Inspector
+
+We provide a convenient script to test the MCP server locally:
+
+```bash
+./test-local.sh
+```
+
+This script automatically:
+- ✅ Loads `.env` file
+- ✅ Verifies `GITHUB_TOKEN`
+- ✅ Checks build status
+- ✅ **Launches MCP Inspector** (opens browser automatically)
+
+You can test all Tools with a GUI and inspect API responses in MCP Inspector!
+
 ## ⚙️ MCP Client Configuration
 
 ### Claude Desktop Setup
@@ -159,6 +175,51 @@ Create a new GitHub Pull Request.
 - `base` (string, required): Branch to merge into (e.g., `"main"`)
 - `draft` (boolean, optional): Create as draft PR
 - `maintainer_can_modify` (boolean, optional): Allow maintainer modifications
+
+---
+
+### github_add_comment
+Add a comment to a GitHub Issue or Pull Request.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `issue_number` (number, required): Issue or PR number
+- `body` (string, required): Comment body text
+
+**Returns:**
+- Comment ID, body, author
+- Comment URL and creation time
+
+### github_update_comment
+Update an existing comment.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `comment_id` (number, required): Comment ID to update
+- `body` (string, required): New comment body text
+
+### github_delete_comment
+Delete a comment.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `comment_id` (number, required): Comment ID to delete
+
+### github_add_reaction
+Add an emoji reaction to a comment or directly to an issue/PR.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `comment_id` (number, optional): Comment ID to react to
+- `issue_number` (number, optional): Issue/PR number to react to
+- `reaction` (string, required): Reaction type
+  - `thumbs_up` 👍, `thumbs_down` 👎, `laugh` 😄, `confused` 😕, `heart` ❤️, `hooray` 🎉, `rocket` 🚀, `eyes` 👀
+
+**Note**: Either `comment_id` OR `issue_number` must be provided.
 
 ## 💡 Usage Examples
 
