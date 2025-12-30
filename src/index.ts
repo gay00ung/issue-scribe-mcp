@@ -103,6 +103,56 @@ const AddReactionSchema = z.object({
     message: "Either comment_id or issue_number must be provided",
 });
 
+const SearchIssuesSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    query: z.string().optional(),
+    state: z.enum(["open", "closed", "all"]).optional(),
+    labels: z.array(z.string()).optional(),
+    sort: z.enum(["created", "updated", "comments"]).optional(),
+    direction: z.enum(["asc", "desc"]).optional(),
+    per_page: z.number().max(100).optional(),
+});
+
+const SearchPRsSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    query: z.string().optional(),
+    state: z.enum(["open", "closed", "all"]).optional(),
+    sort: z.enum(["created", "updated", "popularity", "long-running"]).optional(),
+    direction: z.enum(["asc", "desc"]).optional(),
+    per_page: z.number().max(100).optional(),
+});
+
+const ListRecentIssuesSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    state: z.enum(["open", "closed", "all"]).optional(),
+    sort: z.enum(["created", "updated"]).optional(),
+    per_page: z.number().max(100).optional(),
+});
+
+const MergePRSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    pull_number: z.number(),
+    merge_method: z.enum(["merge", "squash", "rebase"]).optional(),
+    commit_title: z.string().optional(),
+    commit_message: z.string().optional(),
+});
+
+const GetPRDiffSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    pull_number: z.number(),
+});
+
+const GetPRFilesSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    pull_number: z.number(),
+});
+
 const server = new Server(
     {
         name: "issue-scribe-mcp",
@@ -254,6 +304,98 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                     },
                     required: ["owner", "repo", "reaction"],
+                },
+            },
+            {
+                name: "github_search_issues",
+                description: "Search for issues in a repository with advanced filters",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        query: { type: "string", description: "Search query (optional)" },
+                        state: { type: "string", enum: ["open", "closed", "all"], description: "Issue state (optional)" },
+                        labels: { type: "array", items: { type: "string" }, description: "Filter by labels (optional)" },
+                        sort: { type: "string", enum: ["created", "updated", "comments"], description: "Sort by (optional)" },
+                        direction: { type: "string", enum: ["asc", "desc"], description: "Sort direction (optional)" },
+                        per_page: { type: "number", description: "Results per page, max 100 (optional)" },
+                    },
+                    required: ["owner", "repo"],
+                },
+            },
+            {
+                name: "github_search_prs",
+                description: "Search for pull requests in a repository with advanced filters",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        query: { type: "string", description: "Search query (optional)" },
+                        state: { type: "string", enum: ["open", "closed", "all"], description: "PR state (optional)" },
+                        sort: { type: "string", enum: ["created", "updated", "popularity", "long-running"], description: "Sort by (optional)" },
+                        direction: { type: "string", enum: ["asc", "desc"], description: "Sort direction (optional)" },
+                        per_page: { type: "number", description: "Results per page, max 100 (optional)" },
+                    },
+                    required: ["owner", "repo"],
+                },
+            },
+            {
+                name: "github_list_recent_issues",
+                description: "List recent issues in a repository",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        state: { type: "string", enum: ["open", "closed", "all"], description: "Issue state (optional, default: open)" },
+                        sort: { type: "string", enum: ["created", "updated"], description: "Sort by (optional, default: created)" },
+                        per_page: { type: "number", description: "Results per page, max 100 (optional, default: 30)" },
+                    },
+                    required: ["owner", "repo"],
+                },
+            },
+            {
+                name: "github_merge_pr",
+                description: "Merge a pull request",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        pull_number: { type: "number", description: "PR number to merge" },
+                        merge_method: { type: "string", enum: ["merge", "squash", "rebase"], description: "Merge method (optional, default: merge)" },
+                        commit_title: { type: "string", description: "Custom commit title (optional)" },
+                        commit_message: { type: "string", description: "Custom commit message (optional)" },
+                    },
+                    required: ["owner", "repo", "pull_number"],
+                },
+            },
+            {
+                name: "github_get_pr_diff",
+                description: "Get the full diff of a pull request",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        pull_number: { type: "number", description: "PR number" },
+                    },
+                    required: ["owner", "repo", "pull_number"],
+                },
+            },
+            {
+                name: "github_get_pr_files",
+                description: "Get list of files changed in a pull request with details",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        pull_number: { type: "number", description: "PR number" },
+                    },
+                    required: ["owner", "repo", "pull_number"],
                 },
             },
         ],
@@ -783,6 +925,351 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             error: error.message,
                             status: error.status,
                             detail: `Failed to add reaction "${reaction}" to ${target} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_search_issues") {
+        try {
+            const { owner, repo, query, state, labels, sort, direction, per_page } = SearchIssuesSchema.parse(args);
+
+            const issues = await octokit.rest.issues.listForRepo({
+                owner,
+                repo,
+                state: state || "open",
+                labels: labels?.join(","),
+                sort: sort as any,
+                direction: direction as any,
+                per_page: per_page || 30,
+            });
+
+            // Filter out pull requests first
+            const issuesOnly = issues.data.filter(issue => !issue.pull_request);
+            const filteredIssues = query
+                ? issues.data.filter(issue => !issue.pull_request).filter(issue =>
+                    issue.title.toLowerCase().includes(query.toLowerCase()) ||
+                    issue.body?.toLowerCase().includes(query.toLowerCase())
+                )
+                : issues.data.filter(issue => !issue.pull_request);
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                total_count: filteredIssues.length,
+                                issues: filteredIssues.map(issue => ({
+                                    number: issue.number,
+                                    title: issue.title,
+                                    state: issue.state,
+                                    user: issue.user?.login,
+                                    labels: issue.labels.map((l: any) => typeof l === "string" ? l : l.name),
+                                    created_at: issue.created_at,
+                                    updated_at: issue.updated_at,
+                                    comments: issue.comments,
+                                    html_url: issue.html_url,
+                                })),
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to search issues in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_search_prs") {
+        try {
+            const { owner, repo, query, state, sort, direction, per_page } = SearchPRsSchema.parse(args);
+
+            const prs = await octokit.rest.pulls.list({
+                owner,
+                repo,
+                state: state || "open",
+                sort: sort as any,
+                direction: direction as any,
+                per_page: per_page || 30,
+            });
+
+            const filteredPRs = query
+                ? prs.data.filter(pr =>
+                    pr.title.toLowerCase().includes(query.toLowerCase()) ||
+                    pr.body?.toLowerCase().includes(query.toLowerCase())
+                )
+                : prs.data;
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                total_count: filteredPRs.length,
+                                pull_requests: filteredPRs.map(pr => ({
+                                    number: pr.number,
+                                    title: pr.title,
+                                    state: pr.state,
+                                    user: pr.user?.login,
+                                    head: pr.head.ref,
+                                    base: pr.base.ref,
+                                    created_at: pr.created_at,
+                                    updated_at: pr.updated_at,
+                                    draft: pr.draft,
+                                    html_url: pr.html_url,
+                                })),
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to search PRs in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_list_recent_issues") {
+        try {
+            const { owner, repo, state, sort, per_page } = ListRecentIssuesSchema.parse(args);
+
+            const issues = await octokit.rest.issues.listForRepo({
+                owner,
+                repo,
+                state: state || "open",
+                sort: sort || "created",
+                direction: "desc",
+                per_page: per_page || 30,
+            });
+
+            // Filter out pull requests (GitHub API returns both issues and PRs)
+            const actualIssues = issues.data.filter(issue => !issue.pull_request);
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                count: actualIssues.length,
+                                issues: actualIssues.map(issue => ({
+                                    number: issue.number,
+                                    title: issue.title,
+                                    state: issue.state,
+                                    user: issue.user?.login,
+                                    labels: issue.labels.map((l: any) => typeof l === "string" ? l : l.name),
+                                    created_at: issue.created_at,
+                                    updated_at: issue.updated_at,
+                                    comments: issue.comments,
+                                    html_url: issue.html_url,
+                                })),
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to list recent issues in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_merge_pr") {
+        try {
+            const { owner, repo, pull_number, merge_method, commit_title, commit_message } = MergePRSchema.parse(args);
+
+            const result = await octokit.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number,
+                merge_method: merge_method as any,
+                commit_title,
+                commit_message,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                merged: result.data.merged,
+                                sha: result.data.sha,
+                                message: result.data.message,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const pullNum = args && typeof args === 'object' && 'pull_number' in args ? args.pull_number : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to merge PR #${pullNum} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_get_pr_diff") {
+        try {
+            const { owner, repo, pull_number } = GetPRDiffSchema.parse(args);
+
+            const diff = await octokit.rest.pulls.get({
+                owner,
+                repo,
+                pull_number,
+                mediaType: {
+                    format: "diff",
+                },
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                pull_number,
+                                diff: diff.data as any,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const pullNum = args && typeof args === 'object' && 'pull_number' in args ? args.pull_number : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to get diff for PR #${pullNum} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_get_pr_files") {
+        try {
+            const { owner, repo, pull_number } = GetPRFilesSchema.parse(args);
+
+            const files = await octokit.rest.pulls.listFiles({
+                owner,
+                repo,
+                pull_number,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                pull_number,
+                                total_files: files.data.length,
+                                files: files.data.map(file => ({
+                                    filename: file.filename,
+                                    status: file.status,
+                                    additions: file.additions,
+                                    deletions: file.deletions,
+                                    changes: file.changes,
+                                    blob_url: file.blob_url,
+                                    raw_url: file.raw_url,
+                                    patch: file.patch,
+                                })),
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const pullNum = args && typeof args === 'object' && 'pull_number' in args ? args.pull_number : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to get files for PR #${pullNum} in ${owner}/${repo}`,
                         }, null, 2),
                     },
                 ],
