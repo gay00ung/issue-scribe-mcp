@@ -153,6 +153,62 @@ const GetPRFilesSchema = z.object({
     pull_number: z.number(),
 });
 
+const CreateLabelSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    name: z.string(),
+    color: z.string(), // hex color without '#'
+    description: z.string().optional(),
+});
+
+const UpdateLabelSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    name: z.string(), // current label name
+    new_name: z.string().optional(),
+    color: z.string().optional(), // hex color without '#'
+    description: z.string().optional(),
+});
+
+const DeleteLabelSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    name: z.string(),
+});
+
+const ListLabelsSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    per_page: z.number().max(100).optional(),
+});
+
+const ListBranchesSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    protected: z.boolean().optional(),
+    per_page: z.number().max(100).optional(),
+});
+
+const CreateBranchSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    branch: z.string(), // new branch name
+    ref: z.string(), // source branch or commit SHA (e.g., "main" or full ref "refs/heads/main")
+});
+
+const DeleteBranchSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    branch: z.string(), // branch name to delete
+});
+
+const CompareBranchesSchema = z.object({
+    owner: z.string(),
+    repo: z.string(),
+    base: z.string(), // base branch
+    head: z.string(), // head branch to compare
+});
+
 const server = new Server(
     {
         name: "issue-scribe-mcp",
@@ -396,6 +452,118 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         pull_number: { type: "number", description: "PR number" },
                     },
                     required: ["owner", "repo", "pull_number"],
+                },
+            },
+            {
+                name: "github_create_label",
+                description: "Create a new label in the repository",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        name: { type: "string", description: "Label name" },
+                        color: { type: "string", description: "Hex color code without '#' (e.g., 'FF0000' for red)" },
+                        description: { type: "string", description: "Label description (optional)" },
+                    },
+                    required: ["owner", "repo", "name", "color"],
+                },
+            },
+            {
+                name: "github_update_label",
+                description: "Update an existing label (name, color, or description)",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        name: { type: "string", description: "Current label name to update" },
+                        new_name: { type: "string", description: "New label name (optional)" },
+                        color: { type: "string", description: "New hex color code without '#' (optional)" },
+                        description: { type: "string", description: "New description (optional)" },
+                    },
+                    required: ["owner", "repo", "name"],
+                },
+            },
+            {
+                name: "github_delete_label",
+                description: "Delete a label from the repository",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        name: { type: "string", description: "Label name to delete" },
+                    },
+                    required: ["owner", "repo", "name"],
+                },
+            },
+            {
+                name: "github_list_labels",
+                description: "List all labels in the repository",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        per_page: { type: "number", description: "Results per page, max 100 (optional, default: 30)" },
+                    },
+                    required: ["owner", "repo"],
+                },
+            },
+            {
+                name: "github_list_branches",
+                description: "List all branches in the repository",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        protected: { type: "boolean", description: "Filter by protected status (optional)" },
+                        per_page: { type: "number", description: "Results per page, max 100 (optional, default: 30)" },
+                    },
+                    required: ["owner", "repo"],
+                },
+            },
+            {
+                name: "github_create_branch",
+                description: "Create a new branch from an existing branch or commit",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        branch: { type: "string", description: "New branch name" },
+                        ref: { type: "string", description: "Source branch name or commit SHA (e.g., 'main' or 'abc123')" },
+                    },
+                    required: ["owner", "repo", "branch", "ref"],
+                },
+            },
+            {
+                name: "github_delete_branch",
+                description: "Delete a branch from the repository",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        branch: { type: "string", description: "Branch name to delete" },
+                    },
+                    required: ["owner", "repo", "branch"],
+                },
+            },
+            {
+                name: "github_compare_branches",
+                description: "Compare two branches and show the differences",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        owner: { type: "string", description: "Repository owner" },
+                        repo: { type: "string", description: "Repository name" },
+                        base: { type: "string", description: "Base branch name" },
+                        head: { type: "string", description: "Head branch name to compare" },
+                    },
+                    required: ["owner", "repo", "base", "head"],
                 },
             },
         ],
@@ -1270,6 +1438,449 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             error: error.message,
                             status: error.status,
                             detail: `Failed to get files for PR #${pullNum} in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_create_label") {
+        try {
+            const { owner, repo, name: labelName, color, description } = CreateLabelSchema.parse(args);
+
+            const label = await octokit.rest.issues.createLabel({
+                owner,
+                repo,
+                name: labelName,
+                color,
+                description,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                label: {
+                                    name: label.data.name,
+                                    color: label.data.color,
+                                    description: label.data.description,
+                                    url: label.data.url,
+                                },
+                                message: `Label "${labelName}" created successfully`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const labelName = args && typeof args === 'object' && 'name' in args ? args.name : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to create label "${labelName}" in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_update_label") {
+        try {
+            const { owner, repo, name: currentName, new_name, color, description } = UpdateLabelSchema.parse(args);
+
+            const label = await octokit.rest.issues.updateLabel({
+                owner,
+                repo,
+                name: currentName,
+                new_name,
+                color,
+                description,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                label: {
+                                    name: label.data.name,
+                                    color: label.data.color,
+                                    description: label.data.description,
+                                    url: label.data.url,
+                                },
+                                message: `Label "${currentName}" updated successfully`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const labelName = args && typeof args === 'object' && 'name' in args ? args.name : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to update label "${labelName}" in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_delete_label") {
+        try {
+            const { owner, repo, name: labelName } = DeleteLabelSchema.parse(args);
+
+            await octokit.rest.issues.deleteLabel({
+                owner,
+                repo,
+                name: labelName,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                message: `Label "${labelName}" deleted successfully from ${owner}/${repo}`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const labelName = args && typeof args === 'object' && 'name' in args ? args.name : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to delete label "${labelName}" from ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_list_labels") {
+        try {
+            const { owner, repo, per_page } = ListLabelsSchema.parse(args);
+
+            const labels = await octokit.rest.issues.listLabelsForRepo({
+                owner,
+                repo,
+                per_page,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                count: labels.data.length,
+                                labels: labels.data.map((label) => ({
+                                    name: label.name,
+                                    color: label.color,
+                                    description: label.description,
+                                    url: label.url,
+                                })),
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to list labels for ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_list_branches") {
+        try {
+            const { owner, repo, protected: isProtected, per_page } = ListBranchesSchema.parse(args);
+
+            const branches = await octokit.rest.repos.listBranches({
+                owner,
+                repo,
+                protected: isProtected,
+                per_page,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                count: branches.data.length,
+                                branches: branches.data.map((branch) => ({
+                                    name: branch.name,
+                                    commit: {
+                                        sha: branch.commit.sha,
+                                        url: branch.commit.url,
+                                    },
+                                    protected: branch.protected,
+                                })),
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to list branches for ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_create_branch") {
+        try {
+            const { owner, repo, branch, ref } = CreateBranchSchema.parse(args);
+
+            // Get the SHA of the source ref
+            let sha: string;
+            try {
+                // Try to get ref as a branch first
+                const refData = await octokit.rest.git.getRef({
+                    owner,
+                    repo,
+                    ref: `heads/${ref}`,
+                });
+                sha = refData.data.object.sha;
+            } catch {
+                // If not a branch, try as a commit SHA
+                const commit = await octokit.rest.git.getCommit({
+                    owner,
+                    repo,
+                    commit_sha: ref,
+                });
+                sha = commit.data.sha;
+            }
+
+            // Create the new branch
+            const newBranch = await octokit.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${branch}`,
+                sha,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                branch: {
+                                    name: branch,
+                                    ref: newBranch.data.ref,
+                                    sha: newBranch.data.object.sha,
+                                    url: newBranch.data.url,
+                                },
+                                message: `Branch "${branch}" created successfully from "${ref}"`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const branchName = args && typeof args === 'object' && 'branch' in args ? args.branch : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to create branch "${branchName}" in ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_delete_branch") {
+        try {
+            const { owner, repo, branch } = DeleteBranchSchema.parse(args);
+
+            await octokit.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: `heads/${branch}`,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                message: `Branch "${branch}" deleted successfully from ${owner}/${repo}`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const branchName = args && typeof args === 'object' && 'branch' in args ? args.branch : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to delete branch "${branchName}" from ${owner}/${repo}`,
+                        }, null, 2),
+                    },
+                ],
+                isError: true,
+            };
+        }
+    }
+
+    if (name === "github_compare_branches") {
+        try {
+            const { owner, repo, base, head } = CompareBranchesSchema.parse(args);
+
+            const comparison = await octokit.rest.repos.compareCommits({
+                owner,
+                repo,
+                base,
+                head,
+            });
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(
+                            {
+                                success: true,
+                                comparison: {
+                                    status: comparison.data.status,
+                                    ahead_by: comparison.data.ahead_by,
+                                    behind_by: comparison.data.behind_by,
+                                    total_commits: comparison.data.total_commits,
+                                    base_commit: {
+                                        sha: comparison.data.base_commit.sha,
+                                        message: comparison.data.base_commit.commit.message,
+                                    },
+                                    commits: comparison.data.commits.map((commit) => ({
+                                        sha: commit.sha,
+                                        message: commit.commit.message,
+                                        author: commit.commit.author?.name,
+                                        date: commit.commit.author?.date,
+                                    })),
+                                    files: comparison.data.files?.map((file) => ({
+                                        filename: file.filename,
+                                        status: file.status,
+                                        additions: file.additions,
+                                        deletions: file.deletions,
+                                        changes: file.changes,
+                                    })),
+                                },
+                                message: `Comparing ${base}...${head}: ${comparison.data.ahead_by} commits ahead, ${comparison.data.behind_by} commits behind`,
+                            },
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            const base = args && typeof args === 'object' && 'base' in args ? args.base : 'unknown';
+            const head = args && typeof args === 'object' && 'head' in args ? args.head : 'unknown';
+            const owner = args && typeof args === 'object' && 'owner' in args ? args.owner : 'unknown';
+            const repo = args && typeof args === 'object' && 'repo' in args ? args.repo : 'unknown';
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            error: error.message,
+                            status: error.status,
+                            detail: `Failed to compare branches ${base}...${head} in ${owner}/${repo}`,
                         }, null, 2),
                     },
                 ],
