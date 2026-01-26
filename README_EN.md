@@ -241,6 +241,100 @@ Add an emoji reaction to a comment or directly to an issue/PR.
 
 **Note**: Either `comment_id` OR `issue_number` must be provided.
 
+### github_create_label
+Create a new label in the repository.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `name` (string, required): Label name
+- `color` (string, required): Hex color code without '#' (e.g., 'FF0000')
+- `description` (string, optional): Label description
+
+**Returns:**
+- Label name, color, description
+- Label URL
+
+### github_update_label
+Update an existing label's name, color, or description.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `name` (string, required): Current label name to update
+- `new_name` (string, optional): New label name
+- `color` (string, optional): New hex color code without '#'
+- `description` (string, optional): New description
+
+### github_delete_label
+Delete a label from the repository.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `name` (string, required): Label name to delete
+
+### github_list_labels
+List all labels in the repository.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `per_page` (number, optional): Results per page, max 100 (default: 30)
+
+**Returns:**
+- Label count
+- Each label's name, color, description, and URL
+
+### github_list_branches
+List all branches in the repository.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `protected` (boolean, optional): Filter by protected status
+- `per_page` (number, optional): Results per page, max 100 (default: 30)
+
+**Returns:**
+- Branch count
+- Each branch's name, commit SHA, and protected status
+
+### github_create_branch
+Create a new branch from an existing branch or commit.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `branch` (string, required): New branch name
+- `ref` (string, required): Source branch name or commit SHA (e.g., 'main' or 'abc123')
+
+**Returns:**
+- Branch name, ref, SHA
+- Branch URL
+
+### github_delete_branch
+Delete a branch from the repository.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `branch` (string, required): Branch name to delete
+
+### github_compare_branches
+Compare two branches and show the differences.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `base` (string, required): Base branch name
+- `head` (string, required): Head branch name to compare
+
+**Returns:**
+- Comparison status (ahead/behind)
+- Commit difference count
+- Changed files list (additions/deletions/changes)
+- Commit list
+
 ## 💡 Usage Examples
 
 ### Using with Claude Desktop
