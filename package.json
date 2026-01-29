@@ -1,6 +1,6 @@
 {
   "name": "issue-scribe-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "MCP server for GitHub Issue/PR context aggregation",
   "main": "dist/index.js",
   "type": "module",
