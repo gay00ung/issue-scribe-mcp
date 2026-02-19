@@ -11,9 +11,11 @@
 
 ## ✨ Features
 
-- 🔍 **Context Retrieval**: Collect complete context including issue/PR details, comments, and commit history
-- 📝 **Issue Management**: Create new issues and update existing ones
-- 🔀 **PR Creation**: Automatically create Pull Requests with Draft PR support
+- 🔍 **Deep Context Retrieval**: Collect issue/PR body, comments, commits, reviews, review comments, changed files, and CI status
+- 🔎 **Advanced Search**: Search issues/PRs through GitHub Search API with custom qualifiers (`author:`, `label:`, `is:`, etc.)
+- 📄 **Pagination Support**: Use `page`, `per_page`, and `fetch_all` for large repositories
+- 🛡️ **Safe Execution Mode**: `dry_run`, `expected_*`, and `confirm_token` safeguards for merge/delete operations
+- 📝 **Issue/PR Management**: Create/update issues, create PRs, manage comments/reactions/labels/branches
 - 🤖 **AI Integration**: Seamless integration with MCP-compatible AI tools like Claude Desktop
 - 🔐 **Simple Authentication**: Secure API access via GitHub Personal Access Token
 
@@ -38,6 +40,8 @@ Create a `.env` file in the project root:
 ```bash
 GITHUB_TOKEN=your_github_personal_access_token_here
 ```
+
+The server automatically loads `.env` via `dotenv` at startup.
 
 ## 🚀 Installation
 
@@ -79,6 +83,9 @@ npm install
 
 # Build
 npm run build
+
+# Test
+npm test
 
 # Set up environment variables
 cp .env.example .env
@@ -131,6 +138,11 @@ Restart Claude Desktop after configuration.
 
 ## 🛠️ Available Tools
 
+### Shared Options
+- Most list/search tools support `page`, `per_page`, and `fetch_all`.
+- Risky operations (`github_merge_pr`, `github_delete_comment`, `github_delete_branch`, `github_delete_label`) support `dry_run`; live execution requires `confirm_token: "CONFIRM"`.
+- Search tools (`github_search_issues`, `github_search_prs`) support `qualifiers` (for example `author:octocat`, `label:bug`, `is:draft`).
+
 ### github_get_issue_context
 Retrieve full context of a GitHub Issue.
 
@@ -138,6 +150,9 @@ Retrieve full context of a GitHub Issue.
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
 - `issue_number` (number, required): Issue number
+- `comments_page` (number, optional): Comment page number
+- `comments_per_page` (number, optional): Comments per page (max 100)
+- `comments_fetch_all` (boolean, optional): Fetch all comment pages (default: `true`)
 
 **Returns:**
 - Issue title, body, state
@@ -152,6 +167,11 @@ Retrieve full context of a GitHub Pull Request (including commits).
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
 - `pull_number` (number, required): PR number
+- `include_reviews` (boolean, optional): Include reviews + approval summary (default: `true`)
+- `include_review_comments` (boolean, optional): Include line-level review comments (default: `true`)
+- `include_files` (boolean, optional): Include changed files (default: `true`)
+- `include_ci` (boolean, optional): Include CI/check status (default: `true`)
+- `page` / `per_page` / `fetch_all` (optional): Pagination for PR context collections
 
 **Returns:**
 - PR title, body, state
@@ -227,6 +247,9 @@ Delete a comment.
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
 - `comment_id` (number, required): Comment ID to delete
+- `dry_run` (boolean, optional): Preview deletion without executing
+- `confirm_token` (string, optional): Required as `"CONFIRM"` for live deletion
+- `expected_body_substring` (string, optional): Guard condition; delete only if body contains this substring
 
 ### github_add_reaction
 Add an emoji reaction to a comment or directly to an issue/PR.
@@ -240,6 +263,77 @@ Add an emoji reaction to a comment or directly to an issue/PR.
   - `thumbs_up` 👍, `thumbs_down` 👎, `laugh` 😄, `confused` 😕, `heart` ❤️, `hooray` 🎉, `rocket` 🚀, `eyes` 👀
 
 **Note**: Either `comment_id` OR `issue_number` must be provided.
+
+### github_search_issues
+Search repository issues using GitHub Search API.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `query` (string, optional): Search text
+- `state` (string, optional): `"open"`, `"closed"`, `"all"`
+- `labels` (string[], optional): Label filters
+- `qualifiers` (string[], optional): Extra qualifiers (for example `author:octocat`)
+- `sort` (string, optional): `"created"`, `"updated"`, `"comments"`, `"best-match"`
+- `direction` (string, optional): `"asc"`, `"desc"`
+- `page` / `per_page` / `fetch_all` (optional): Pagination controls
+
+### github_search_prs
+Search repository pull requests using GitHub Search API.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `query` (string, optional): Search text
+- `state` (string, optional): `"open"`, `"closed"`, `"all"`
+- `qualifiers` (string[], optional): Extra qualifiers (for example `author:octocat`, `is:draft`)
+- `sort` (string, optional): `"created"`, `"updated"`, `"comments"`, `"best-match"`
+- `direction` (string, optional): `"asc"`, `"desc"`
+- `page` / `per_page` / `fetch_all` (optional): Pagination controls
+
+### github_list_recent_issues
+List recent issues in a repository.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `state` (string, optional): `"open"`, `"closed"`, `"all"`
+- `sort` (string, optional): `"created"`, `"updated"`, `"comments"`
+- `direction` (string, optional): `"asc"`, `"desc"`
+- `page` / `per_page` / `fetch_all` (optional): Pagination controls
+
+### github_merge_pr
+Merge a pull request.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `pull_number` (number, required): PR number
+- `merge_method` (string, optional): `"merge"`, `"squash"`, `"rebase"`
+- `commit_title` (string, optional): Merge commit title
+- `commit_message` (string, optional): Merge commit message
+- `dry_run` (boolean, optional): Preview merge without executing
+- `expected_head_sha` (string, optional): Guard condition for PR head SHA
+- `confirm_token` (string, optional): Required as `"CONFIRM"` for live merge
+
+### github_get_pr_diff
+Get the PR diff.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `pull_number` (number, required): PR number
+- `max_chars` (number, optional): Maximum diff length in characters
+
+### github_get_pr_files
+List PR changed files.
+
+**Parameters:**
+- `owner` (string, required): Repository owner
+- `repo` (string, required): Repository name
+- `pull_number` (number, required): PR number
+- `include_patch` (boolean, optional): Include patch text per file
+- `page` / `per_page` / `fetch_all` (optional): Pagination controls
 
 ### github_create_label
 Create a new label in the repository.
@@ -273,6 +367,8 @@ Delete a label from the repository.
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
 - `name` (string, required): Label name to delete
+- `dry_run` (boolean, optional): Preview deletion without executing
+- `confirm_token` (string, optional): Required as `"CONFIRM"` for live deletion
 
 ### github_list_labels
 List all labels in the repository.
@@ -280,7 +376,9 @@ List all labels in the repository.
 **Parameters:**
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
+- `page` (number, optional): Page number
 - `per_page` (number, optional): Results per page, max 100 (default: 30)
+- `fetch_all` (boolean, optional): Fetch all pages
 
 **Returns:**
 - Label count
@@ -293,7 +391,9 @@ List all branches in the repository.
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
 - `protected` (boolean, optional): Filter by protected status
+- `page` (number, optional): Page number
 - `per_page` (number, optional): Results per page, max 100 (default: 30)
+- `fetch_all` (boolean, optional): Fetch all pages
 
 **Returns:**
 - Branch count
@@ -319,6 +419,9 @@ Delete a branch from the repository.
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
 - `branch` (string, required): Branch name to delete
+- `dry_run` (boolean, optional): Preview deletion without executing
+- `expected_sha` (string, optional): Guard condition for branch HEAD SHA
+- `confirm_token` (string, optional): Required as `"CONFIRM"` for live deletion
 
 ### github_compare_branches
 Compare two branches and show the differences.
@@ -328,6 +431,8 @@ Compare two branches and show the differences.
 - `repo` (string, required): Repository name
 - `base` (string, required): Base branch name
 - `head` (string, required): Head branch name to compare
+- `max_commits` (number, optional): Maximum commits returned in response
+- `max_files` (number, optional): Maximum files returned in response
 
 **Returns:**
 - Comparison status (ahead/behind)

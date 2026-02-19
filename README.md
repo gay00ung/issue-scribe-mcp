@@ -11,11 +11,13 @@
 
 ## ✨ 주요 기능
 
-- 🔍 **컨텍스트 조회**: Issue와 PR의 상세 정보, 댓글, 커밋 내역 등 전체 컨텍스트 수집
-- 📝 **Issue 관리**: 새로운 Issue 생성 및 기존 Issue 업데이트
-- 🔀 **PR 생성**: Pull Request 자동 생성 및 Draft PR 지원
-- 🤖 **AI 통합**: Claude Desktop 등 MCP를 지원하는 AI 도구와 완벽 통합
-- 🔐 **간편 인증**: GitHub Personal Access Token을 통한 안전한 API 접근
+- 🔍 **고급 컨텍스트 조회**: Issue/PR의 본문, 댓글, 커밋, 리뷰, 리뷰 코멘트, 변경 파일, CI 상태까지 수집
+- 🔎 **검색 고도화**: GitHub Search API 기반 이슈/PR 검색 + qualifier 지원 (`author:`, `label:`, `is:` 등)
+- 📄 **페이지네이션 지원**: `page`, `per_page`, `fetch_all`로 대규모 저장소 데이터 안정적 조회
+- 🛡️ **안전 실행 모드**: merge/delete 계열 작업에 `dry_run`, `expected_*`, `confirm_token` 보호장치
+- 📝 **Issue/PR 관리**: 이슈 생성/수정, PR 생성, 코멘트/리액션, 라벨/브랜치 관리
+- 🤖 **AI 통합**: Claude Desktop 등 MCP를 지원하는 AI 도구와 통합
+- 🔐 **간편 인증**: GitHub Personal Access Token 기반 인증
 
 ## 📋 사전 준비
 
@@ -38,6 +40,8 @@
 ```bash
 GITHUB_TOKEN=your_github_personal_access_token_here
 ```
+
+서버 실행 시 `dotenv`로 `.env`를 자동 로드합니다.
 
 ## 🚀 설치
 
@@ -79,6 +83,9 @@ npm install
 
 # 빌드
 npm run build
+
+# 테스트
+npm test
 
 # 환경변수 설정
 cp .env.example .env
@@ -131,6 +138,11 @@ Claude Desktop의 설정 파일(`claude_desktop_config.json`)에 다음 내용 �
 
 ## 🛠️ 제공 Tools
 
+### 공통 옵션
+- 대부분의 목록/검색 Tool은 `page`, `per_page`, `fetch_all`을 지원합니다.
+- 위험 작업(`github_merge_pr`, `github_delete_comment`, `github_delete_branch`, `github_delete_label`)은 `dry_run`을 지원하며, 실제 실행 시 `confirm_token: "CONFIRM"`이 필요합니다.
+- 검색 Tool(`github_search_issues`, `github_search_prs`)은 `qualifiers`를 지원합니다 (예: `author:octocat`, `label:bug`, `is:draft`).
+
 ### github_get_issue_context
 GitHub Issue의 전체 컨텍스트를 조회합니다.
 
@@ -138,6 +150,9 @@ GitHub Issue의 전체 컨텍스트를 조회합니다.
 - `owner` (string, 필수): 저장소 소유자
 - `repo` (string, 필수): 저장소 이름
 - `issue_number` (number, 필수): 이슈 번호
+- `comments_page` (number, 옵션): 댓글 페이지 번호
+- `comments_per_page` (number, 옵션): 댓글 페이지당 개수 (최대 100)
+- `comments_fetch_all` (boolean, 옵션): 모든 댓글 페이지 조회 여부 (기본: `true`)
 
 **반환 정보:**
 - Issue 제목, 본문, 상태
@@ -152,6 +167,11 @@ GitHub Pull Request의 전체 컨텍스트를 조회합니다 (커밋 포함).
 - `owner` (string, 필수): 저장소 소유자
 - `repo` (string, 필수): 저장소 이름
 - `pull_number` (number, 필수): PR 번호
+- `include_reviews` (boolean, 옵션): 리뷰 정보 포함 여부 (기본: `true`)
+- `include_review_comments` (boolean, 옵션): 라인 리뷰 코멘트 포함 여부 (기본: `true`)
+- `include_files` (boolean, 옵션): 변경 파일 정보 포함 여부 (기본: `true`)
+- `include_ci` (boolean, 옵션): CI/check status 포함 여부 (기본: `true`)
+- `page` / `per_page` / `fetch_all` (옵션): PR 컨텍스트 내부 목록 페이지네이션
 
 **반환 정보:**
 - PR 제목, 본문, 상태
@@ -225,6 +245,9 @@ GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
 - `owner` (string, 필수): 저장소 소유자
 - `repo` (string, 필수): 저장소 이름
 - `comment_id` (number, 필수): 삭제할 댓글 ID
+- `dry_run` (boolean, 옵션): 실제 삭제 없이 미리보기
+- `confirm_token` (string, 옵션): 실제 삭제 시 `"CONFIRM"` 필요
+- `expected_body_substring` (string, 옵션): 댓글 본문 보호 조건 (부분 문자열 일치 시에만 삭제)
 
 ### github_add_reaction
 댓글 또는 Issue/PR에 이모지 반응을 추가합니다.
@@ -238,6 +261,77 @@ GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
   - `thumbs_up` 👍, `thumbs_down` 👎, `laugh` 😄, `confused` 😕, `heart` ❤️, `hooray` 🎉, `rocket` 🚀, `eyes` 👀
 
 **참고**: `comment_id` 또는 `issue_number` 중 하나를 반드시 제공해야 합니다.
+
+### github_search_issues
+GitHub Search API 기반으로 이슈를 검색합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `query` (string, 옵션): 검색어
+- `state` (string, 옵션): `"open"`, `"closed"`, `"all"`
+- `labels` (string[], 옵션): 라벨 필터
+- `qualifiers` (string[], 옵션): 추가 검색 qualifier (예: `author:octocat`)
+- `sort` (string, 옵션): `"created"`, `"updated"`, `"comments"`, `"best-match"`
+- `direction` (string, 옵션): `"asc"`, `"desc"`
+- `page` / `per_page` / `fetch_all` (옵션): 페이지네이션
+
+### github_search_prs
+GitHub Search API 기반으로 PR을 검색합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `query` (string, 옵션): 검색어
+- `state` (string, 옵션): `"open"`, `"closed"`, `"all"`
+- `qualifiers` (string[], 옵션): 추가 검색 qualifier (예: `author:octocat`, `is:draft`)
+- `sort` (string, 옵션): `"created"`, `"updated"`, `"comments"`, `"best-match"`
+- `direction` (string, 옵션): `"asc"`, `"desc"`
+- `page` / `per_page` / `fetch_all` (옵션): 페이지네이션
+
+### github_list_recent_issues
+최근 이슈 목록을 조회합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `state` (string, 옵션): `"open"`, `"closed"`, `"all"`
+- `sort` (string, 옵션): `"created"`, `"updated"`, `"comments"`
+- `direction` (string, 옵션): `"asc"`, `"desc"`
+- `page` / `per_page` / `fetch_all` (옵션): 페이지네이션
+
+### github_merge_pr
+PR을 머지합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `pull_number` (number, 필수): PR 번호
+- `merge_method` (string, 옵션): `"merge"`, `"squash"`, `"rebase"`
+- `commit_title` (string, 옵션): 머지 커밋 제목
+- `commit_message` (string, 옵션): 머지 커밋 메시지
+- `dry_run` (boolean, 옵션): 실제 머지 없이 미리보기
+- `expected_head_sha` (string, 옵션): PR HEAD SHA 보호 조건
+- `confirm_token` (string, 옵션): 실제 머지 시 `"CONFIRM"` 필요
+
+### github_get_pr_diff
+PR의 diff를 조회합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `pull_number` (number, 필수): PR 번호
+- `max_chars` (number, 옵션): diff 최대 출력 길이
+
+### github_get_pr_files
+PR 변경 파일 목록을 조회합니다.
+
+**파라미터:**
+- `owner` (string, 필수): 저장소 소유자
+- `repo` (string, 필수): 저장소 이름
+- `pull_number` (number, 필수): PR 번호
+- `include_patch` (boolean, 옵션): 파일별 patch 포함 여부
+- `page` / `per_page` / `fetch_all` (옵션): 페이지네이션
 
 ### github_create_label
 저장소에 새로운 라벨을 생성합니다.
@@ -271,6 +365,8 @@ GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
 - `owner` (string, 필수): 저장소 소유자
 - `repo` (string, 필수): 저장소 이름
 - `name` (string, 필수): 삭제할 라벨 이름
+- `dry_run` (boolean, 옵션): 실제 삭제 없이 미리보기
+- `confirm_token` (string, 옵션): 실제 삭제 시 `"CONFIRM"` 필요
 
 ### github_list_labels
 저장소의 모든 라벨 목록을 조회합니다.
@@ -278,7 +374,9 @@ GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
 **파라미터:**
 - `owner` (string, 필수): 저장소 소유자
 - `repo` (string, 필수): 저장소 이름
+- `page` (number, 옵션): 페이지 번호
 - `per_page` (number, 옵션): 페이지당 결과 수, 최대 100 (기본값: 30)
+- `fetch_all` (boolean, 옵션): 모든 페이지 조회 여부
 
 **반환 정보:**
 - 라벨 개수
@@ -291,7 +389,9 @@ GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
 - `owner` (string, 필수): 저장소 소유자
 - `repo` (string, 필수): 저장소 이름
 - `protected` (boolean, 옵션): 보호된 브랜치만 필터링
+- `page` (number, 옵션): 페이지 번호
 - `per_page` (number, 옵션): 페이지당 결과 수, 최대 100 (기본값: 30)
+- `fetch_all` (boolean, 옵션): 모든 페이지 조회 여부
 
 **반환 정보:**
 - 브랜치 개수
@@ -317,6 +417,9 @@ GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
 - `owner` (string, 필수): 저장소 소유자
 - `repo` (string, 필수): 저장소 이름
 - `branch` (string, 필수): 삭제할 브랜치 이름
+- `dry_run` (boolean, 옵션): 실제 삭제 없이 미리보기
+- `expected_sha` (string, 옵션): 브랜치 HEAD SHA 보호 조건
+- `confirm_token` (string, 옵션): 실제 삭제 시 `"CONFIRM"` 필요
 
 ### github_compare_branches
 두 브랜치 간의 차이를 비교합니다.
@@ -326,6 +429,8 @@ GitHub Issue 또는 Pull Request에 댓글을 추가합니다.
 - `repo` (string, 필수): 저장소 이름
 - `base` (string, 필수): 기준 브랜치 이름
 - `head` (string, 필수): 비교할 브랜치 이름
+- `max_commits` (number, 옵션): 응답에 포함할 최대 커밋 수
+- `max_files` (number, 옵션): 응답에 포함할 최대 파일 수
 
 **반환 정보:**
 - 비교 상태 (ahead/behind)
